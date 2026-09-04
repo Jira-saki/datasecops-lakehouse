@@ -1,58 +1,62 @@
 [![DataSecOps CI Pipeline](https://github.com/Jira-saki/aws-dataops-platform/actions/workflows/ci.yaml/badge.svg)](https://github.com/Jira-saki/aws-dataops-platform/actions/workflows/ci.yaml)
+![Architecture](https://img.shields.io/badge/Architecture-Serverless%20Lakehouse-orange?style=flat-square)
+![FinOps](https://img.shields.io/badge/FinOps-Zero--Idle--Cost-green?style=flat-square)
+![Security](https://img.shields.io/badge/Security-Salted%20SHA--256%20PII-blue?style=flat-square)
 
-# Hybrid DataSecOps & Lakehouse Platform — Local-First, Cloud-Ready
+# EP3: Unified Batch & Streaming DataSecOps Lakehouse (Serverless & FinOps)
 
-A production-grade, local-first DataSecOps and Lakehouse platform engineered for multi-tenant web access log ingestion, automated security log correlation, and cloud-agnostic deployment.
+> A production-grade, zero-idle-cost Lakehouse platform engineered for data privacy compliance (GDPR/APPI), dual-engine ingestion, and serverless threat hunting without operational cluster overhead.
 
-The platform bridges local developer iteration and enterprise cloud infrastructure through an architectural continuum: developers run 100% offline using Python 3.12, the `dlt` (data load tool) ELT framework, DuckDB OLAP engine, and an S3-compatible emulator (Floci) on local Kubernetes (`Hobgoblin` / OrbStack). When ready for production, modular HashiCorp Terraform provisions a matching AWS cloud environment featuring SSE-AES256 encrypted S3 data lakes, an AWS Glue Catalog configured with **Partition Projection**, and serverless AWS Athena threat hunting SQL suites.
+The platform bridges local developer iteration and enterprise cloud infrastructure through an architectural continuum: developers execute 100% offline using Python (>= 3.11), the `dlt` (data load tool) ELT framework, DuckDB OLAP engine, and an S3-compatible emulator (Floci). When deploying to AWS, modular HashiCorp Terraform provisions a 100% serverless data lakehouse featuring SSE-AES256 encrypted S3 storage, an AWS Glue Data Catalog configured with **Zero-Crawler Partition Projection**, and serverless AWS Athena threat hunting suites.
 
 ---
 
 ## 🎯 Architectural Highlights & Key Pillars
 
-* **Infrastructure as Code (IaC) & Parity:** Modular Terraform architecture (`modules/s3`, `modules/glue_catalog`) providing 100% parity between local emulation and AWS production targets with server-side encryption (SSE-AES256), public access blocks, and automated metadata management.
-* **Deterministic PII Masking & Privacy Engineering:** Client IP addresses are pseudonymized at ingestion time using a salted SHA-256 cryptographic hasher (`src/utils/hasher.py`), producing a fixed 12-character identifier (`user_masked_id`) to ensure GDPR compliance without sacrificing user correlation capabilities.
-* **Dynamic Multi-Tenancy:** Automated domain normalization routes web access logs into isolated tenant namespaces (`tenant_01`, `tenant_02`).
-* **Non-Blocking Dead Letter Queue (DLQ):** Unparseable payloads, malformed headers, and regex mismatches are automatically segregated into an isolated DLQ Parquet dataset, allowing clean records to process continuously without pipeline failures.
-* **Hive-Style Parquet Partitioning:** Columnar Apache Parquet storage structured with Hive-style directory partitioning (`year=YYYY/month=MM/day=DD`) for high-ratio Snappy/ZSTD compression and aggressive partition pruning.
+* **Dual-Engine Ingestion Strategy:** Unifies local-first batch ingestion (`dlt` + Parquet) with managed real-time streaming (**Amazon Data Firehose** *[In Progress]*), terminating into a single partitioned Lakehouse format.
+* **Deterministic PII Masking & Privacy Engineering:** Client IP addresses are pseudonymized at ingestion time using a salted SHA-256 cryptographic hasher (`src/utils/hasher.py`), generating a fixed 12-character identifier (`user_masked_id`) to ensure GDPR compliance while retaining cross-table correlation capabilities.
+* **Pure FinOps & Zero-Idle Cost:** 100% Serverless architecture on AWS. Zero EC2/EKS compute charges when idle, sub-kilobyte query scanning via Snappy Parquet, and zero metadata crawler costs.
 * **AWS Glue Partition Projection:** Eliminates daily Glue Crawler executions and expensive metastore listing operations by deterministically projecting partition metadata directly within Athena queries.
-* **Local-to-Cloud Threat Hunting:** Unified SQL analytics interface supporting local threat queries via DuckDB and enterprise cloud security investigation via AWS Athena.
+* **Non-Blocking Dead Letter Queue (DLQ):** Unparseable payloads, malformed headers, and regex mismatches are automatically segregated into an isolated DLQ Parquet dataset, allowing clean records to process continuously without pipeline failures.
+* **Unified Threat Hunting Interface:** Cross-environment SQL analytics supporting local zero-copy queries via DuckDB and enterprise cloud security investigation via AWS Athena.
 
 ---
 
 ## 🏗 System Architecture
 
+
 ![DATASEC-OPS PLATFORM Architecture Data Flow](assets/dataops.png)
+
+
+
 
 ```text
                [ Raw Multi-Tenant Logs / Audit Trails ]
-                                   │
-                                   ▼
-         ┌──────────────────────────────────────────────────┐
-         │          DataSecOps Ingestion Gateway (dlt)      │
-         ├──────────────────────────────────────────────────┤
-         │  • Regex Log Parsing & Normalization             │
-         │  • Deterministic SHA-256 PII Hasher (Client IPs) │
-         │  • Dynamic Tenant Partition Routing              │
-         │  • Dead Letter Queue (DLQ) Anomaly Filter        │
-         └──────────────────────────────────────────────────┘
-                                   │
-             ┌─────────────────────┴─────────────────────┐
-             ▼                                           ▼
-   [ Clean Access & Audit Logs ]               [ Corrupted Payloads ]
-             │                                           │
-             └─────────────────────┬─────────────────────┘
-                                   ▼
-                   [ Hive-Partitioned Apache Parquet ]
-                 (year=YYYY / month=MM / day=DD)
-                                   │
-      ┌────────────────────────────┴────────────────────────────┐
-      ▼                                                         ▼
-[ Local Environment ]                                   [ AWS Cloud Target ]
-• Local K8s Cluster (`Hobgoblin`)                       • Terraform Managed Infra
-• S3 Emulator (Floci :4566)                             • Encrypted S3 Data Lake
-• DuckDB OLAP Analytics Engine                          • AWS Glue Data Catalog
-• Self-Hosted Prefect Orchestration                     • Athena Threat Hunting Suite
+                                  │
+         ┌────────────────────────┴────────────────────────┐
+         ▼ (Batch Historical Ingestion)                    ▼ (Near Real-Time Stream)
+┌───────────────────────────────────┐             ┌──────────────────────────────────┐
+│  DataSecOps Ingestion Gateway     │             │ Amazon Data Firehose (Stream)    │
+│  (dlt + DuckDB Engine)            │             │ [Roadmap / In Progress]          │
+└─────────────────┬─────────────────┘             └────────────────┬─────────────────┘
+                  │                                                │
+                  │   • Deterministic Salted SHA-256 PII Hasher    │
+                  │   • Non-Blocking DLQ Anomaly Filter            │
+                  ▼                                                ▼
+        ┌───────────────────┐                            ┌───────────────────┐
+        │ Clean Access Logs │                            │  Corrupted (DLQ)  │
+        └─────────┬─────────┘                            └─────────┬─────────┘
+                  └───────────────────────┬────────────────────────┘
+                                          ▼
+                         [ Hive-Partitioned Apache Parquet ]
+                           (year=YYYY / month=MM / day=DD)
+                                          │
+       ┌──────────────────────────────────┴──────────────────────────────────┐
+       ▼ (Local Emulation)                                                   ▼ (AWS Production - 100% Serverless)
+• Floci S3 Emulation                                                  • Encrypted S3 Data Lake (SSE-AES256)
+• DuckDB OLAP Analytics                                               • AWS Glue Partition Projection (Zero Crawler)
+• Pytest Test Automation                                              • Athena Threat Hunting Analytics
+
 ```
 
 ---
@@ -249,7 +253,7 @@ The infrastructure and DataSecOps pipeline were validated against live AWS resou
 
 | Component | Technology | Version / Specification | Role in Architecture |
 | :--- | :--- | :--- | :--- |
-| **Language** | Python | `>= 3.12` | Pipeline logic & custom log parsers |
+| **Language** | Python | `>= 3.11` | Pipeline logic & custom log parsers |
 | **ELT Framework** | dlt (data load tool) | `>= 1.0.0` | Ingestion, schema inference, & filesystem load |
 | **Storage Engine** | Apache Parquet (PyArrow) | Columnar (Snappy / ZSTD) | Data lake storage with Hive partitioning |
 | **Local Query Engine** | DuckDB | `>= 1.0.0` | Zero-copy SQL analytics on local Parquet files |
